@@ -21,7 +21,9 @@ elements =
  select small span strong sub summary sup table tbody td textarea tfoot
  th thead time title tr u ul video'
 
-  raw: 'script style'
+  raw: 'style'
+
+  script: 'script'
 
   # Valid self-closing HTML 5 elements.
   void: 'area base br col command embed hr img input keygen link meta param
@@ -85,8 +87,6 @@ class Teacup
     if name is 'data' and typeof value is 'object'
       return (@renderAttr "data-#{k}", v for k,v of value).join('')
 
-    name = name.replace /([A-Z])/g, ($1) -> "-#{$1.toLowerCase()}"
-
     if value is true
       value = name
 
@@ -99,19 +99,19 @@ class Teacup
     # render explicitly ordered attributes first
     for name in @attrOrder when name of obj
       result += @renderAttr name, obj[name]
-      delete obj[name]
 
     # then unordered attrs
     for name, value of obj
+      continue if name in @attrOrder
       result += @renderAttr name, value
 
     return result
 
-  renderContents: (contents) ->
+  renderContents: (contents, rest...) ->
     if not contents?
       return
     else if typeof contents is 'function'
-      result = contents.call @
+      result = contents.apply @, rest
       @text result if typeof result is 'string'
     else
       @text contents
@@ -123,6 +123,7 @@ class Teacup
     id = null
     classes = []
     for token in selector.split '.'
+      token = token.trim()
       if id
         classes.push token
       else
@@ -134,11 +135,13 @@ class Teacup
     attrs = {}
     selector = null
     contents = null
+
     for arg, index in args when arg?
       switch typeof arg
         when 'string'
           if index is 0 and @isSelector(arg)
-            selector = @parseSelector(arg)
+            selector = arg
+            parsedSelector = @parseSelector(arg)
           else
             contents = arg
         when 'function', 'number', 'boolean'
@@ -151,15 +154,15 @@ class Teacup
         else
           contents = arg
 
-    if selector?
-      {id, classes} = selector
+    if parsedSelector?
+      {id, classes} = parsedSelector
       attrs.id = id if id?
       if classes?.length
         if attrs.class
           classes.push attrs.class
         attrs.class = classes.join(' ')
 
-    return {attrs, contents}
+    return {attrs, contents, selector}
 
   tag: (tagName, args...) ->
     {attrs, contents} = @normalizeArgs args
@@ -173,6 +176,13 @@ class Teacup
     @raw contents
     @raw "</#{tagName}>"
 
+  scriptTag: (tagName, args...) ->
+    {attrs, contents} = @normalizeArgs args
+    @raw "<#{tagName}#{@renderAttrs attrs}>"
+    @renderContents contents
+    @raw "</#{tagName}>"
+
+
   selfClosingTag: (tag, args...) ->
     {attrs, contents} = @normalizeArgs args
     if contents
@@ -185,7 +195,7 @@ class Teacup
           __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; },
           __hasProp = {}.hasOwnProperty,
           __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
-      (#{fn.toString()})();
+      (#{@escape fn.toString()})();
     })();</script>"""
 
   comment: (text) ->
@@ -226,13 +236,19 @@ class Teacup
     "\"#{value}\""
 
   #
+  # Plugins
+  #
+  use: (plugin) ->
+    plugin @
+
+  #
   # Binding
   #
   tags: ->
     bound = {}
 
     boundMethodNames = [].concat(
-      'cede coffeescript comment doctype escape ie normalizeArgs raw render renderable script tag text'.split(' ')
+      'cede coffeescript comment component doctype escape ie normalizeArgs raw render renderable script tag text use'.split(' ')
       merge_elements 'regular', 'obsolete', 'raw', 'void', 'obsolete_void'
     )
     for method in boundMethodNames
@@ -240,6 +256,14 @@ class Teacup
         bound[method] = (args...) => @[method].apply @, args
 
     return bound
+
+  component: (func) ->
+    (args...) =>
+      {selector, attrs, contents} = @normalizeArgs(args)
+      renderContents = (args...) =>
+        args.unshift contents
+        @renderContents.apply @, args
+      func.apply @, [selector, attrs, renderContents]
 
 # Define tag functions on the prototype for pretty stack traces
 for tagName in merge_elements 'regular', 'obsolete'
@@ -249,6 +273,10 @@ for tagName in merge_elements 'regular', 'obsolete'
 for tagName in merge_elements 'raw'
   do (tagName) ->
     Teacup::[tagName] = (args...) -> @rawTag tagName, args...
+
+for tagName in merge_elements 'script'
+  do (tagName) ->
+    Teacup::[tagName] = (args...) -> @scriptTag tagName, args...
 
 for tagName in merge_elements 'void', 'obsolete_void'
   do (tagName) ->

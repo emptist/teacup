@@ -4,7 +4,7 @@ Teacup is templates in CoffeeScript.
 
 Compose DSL functions to build strings of HTML.
 Package templates and helpers in CommonJS, AMD modules, or vanilla coffeescript.
-Integrate with the tools you love: Express, Backbone, Rails, and more.
+Integrate with the tools you love: Express, Backbone, Rails, React, and more.
 
 [![Build Status](http://img.shields.io/travis/goodeggs/teacup.svg?style=flat-square)](https://travis-ci.org/goodeggs/teacup)
 [![NPM version](http://img.shields.io/npm/v/teacup.svg?style=flat-square)](https://www.npmjs.org/package/teacup)
@@ -164,6 +164,11 @@ Check out [teacup-backbone-example](https://github.com/goodeggs/teacup-backbone-
 
 The [Teacup::Rails](https://github.com/goodeggs/teacup-rails) gem makes Teacup available to the asset pipeline in Rails 3.1+.
 
+### React
+
+Check out [Teact](https://github.com/hurrymaplelad/teact) for syntax-compatible integration
+with the react virtual DOM.
+
 Guide
 ---------
 
@@ -189,19 +194,6 @@ Define tag attributes with object literals.
 console.log render ->
   button '.btn', type: 'button', disabled: true, 'Click Me'
 # Outputs <button class="btn" type="button" disabled="disabled">Click Me</button>
-```
-
-If you use camelCase attributes, they render as kebab-case.
-
-```coffee
-{render, button} = require 'teacup'
-
-console.log render ->
-  button
-    ngClick: 'executeCallback()',
-    myCustomDirective: 'data',
-    'Click Me'
-# Outputs <button ng-click="executeCallback()" my-custom-directive="data">Click Me</button>
 ```
 
 ### Escaping
@@ -307,6 +299,51 @@ Just use the CoffeeScript compiler.  Uglify will make em real small.
 $ coffee -c -o build src
 ```
 
+### Plugins
+
+
+  Use plugins with the `use` method:
+
+  ```coffee
+  teacup = require 'teacup'
+  camelToKebab = require 'teacup-camel-to-kebab'
+
+  teacup.use camelToKebab()
+  ```
+
+### Components
+
+Create your own teacup tag-like components:
+
+```coffee
+caption = component (selector, attrs, renderContents) ->
+  div "#{selector}.caption", renderContents
+
+caption '.photo-caption' -> text "A bird"
+
+# Outputs <div class="photo-caption caption">A bird</div>
+```
+Components can also pass data along to their children:
+
+```coffee
+modal = component (selector, attrs, renderContents) ->
+  closeButton = ->
+    button 'Close'
+
+  div '.modal', ->
+    renderContents(closeButton)
+
+modal (closeButton) ->
+  text 'close me: '
+  closeButton()
+
+# Outputs <div class="modal">close me: <button>Close</button></div>
+```
+
+#### Available Plugins
+  - [camel-to-kebab](https://github.com/goodeggs/teacup-camel-to-kebab) - transform camelCase attribute names to kebab-case
+  - [databind](https://github.com/shimaore/teacup-databind) - simplify defining KnockoutJS attributes
+
 FAQ
 ----
 
@@ -332,5 +369,5 @@ $ npm install
 $ npm test
 ```
 
-[Changelog](https://github.com/goodeggs/teacup/commits/master)
+[Changelog](CHANGELOG.md)
 ---------
